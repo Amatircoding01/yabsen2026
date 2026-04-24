@@ -1,0 +1,438 @@
+<script>
+  let allKaryawanData = [];
+
+  window.addEventListener('load', function() {
+    google.script.run.withSuccessHandler(populateDropdown).getDaftarKaryawan();
+  });
+
+  function showPage(pageId) {
+    document.querySelectorAll('.page-section').forEach(el => el.classList.add('d-none'));
+    document.getElementById('page-' + pageId).classList.remove('d-none');
+    const titles = {
+      'dashboard': 'Dashboard Utama', 'upload': 'Upload Data Excel', 'edit-absensi': 'Edit & Tambah Absensi Manual',
+      'rekap-all': 'Rekapitulasi Kehadiran (Crosstab)', 'rekap-summary': 'Summary Rekapitulasi (Per Karyawan)',
+      'laporan': 'Cetak Laporan / PDF', 'variabel-gaji': 'Cetak Variabel Gaji (Excel)'
+    };
+    document.getElementById('pageTitle').innerText = titles[pageId];
+  }
+
+  // FUNGSI WARNA: Memastikan status S (Sakit) masuk dengan warna hijau sesuai CSS
+  function getStatusColorClass(status) {
+    let s = status ? status.toString().trim().toUpperCase() : "";
+    if(s === 'H') return 'bg-status-h';
+    if(s === 'S') return 'bg-status-s'; // Status Sakit (Hijau Muda)
+    if(s === 'ST') return 'bg-status-st';
+    if(s === 'PG') return 'bg-status-pg';
+    if(s === 'VC') return 'bg-status-vc';
+    if(s === 'C') return 'bg-status-c';
+    return '';
+  }
+
+  function populateDropdown(res) {
+    const listAll = document.getElementById('listKaryawanAll');
+    const listSingle = document.getElementById('listKaryawanSingle');
+    const ptAlls = document.querySelectorAll('.select-pt-all');
+    const ptSingles = document.querySelectorAll('.select-pt-single');
+
+    if(res.error) { alert("Error: " + res.error); return; }
+    allKaryawanData = res.data; 
+
+    listAll.innerHTML = ''; listSingle.innerHTML = '';
+    res.data.forEach(k => { 
+       let optVal = `${k.nrpp} - ${k.nama}`;
+       listAll.appendChild(new Option(optVal, optVal)); listSingle.appendChild(new Option(optVal, optVal));
+    });
+
+    ptAlls.forEach(sel => {
+       sel.innerHTML = '<option value="ALL">ALL PERUSAHAAN</option>';
+       res.perusahaanList.forEach(pt => sel.appendChild(new Option(pt, pt)));
+    });
+    ptSingles.forEach(sel => {
+       sel.innerHTML = '';
+       res.perusahaanList.forEach(pt => sel.appendChild(new Option(pt, pt)));
+    });
+    filterCheckboxKaryawan(); 
+  }
+
+  function filterTabel(inputId, tableId) {
+    let filter = document.getElementById(inputId).value.toUpperCase();
+    let rows = document.querySelectorAll(`#${tableId} tbody tr`);
+    rows.forEach(row => { row.style.display = row.innerText.toUpperCase().includes(filter) ? '' : 'none'; });
+  }
+
+  function loadEditAbsensi() {
+    const pt = document.getElementById('eaPerusahaan').value;
+    const tgl = document.getElementById('eaTgl').value;
+    if(!tgl) { alert("Silakan pilih Tanggal Absensi!"); return; }
+
+    document.getElementById('areaEditAbsensi').style.display = 'block';
+    const tbody = document.querySelector('#tblEditAbsensi tbody');
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i> Menarik data dari server...</td></tr>';
+
+    google.script.run.withSuccessHandler(function(data) {
+      tbody.innerHTML = '';
+      if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-3">Tidak ada karyawan.</td></tr>'; return; }
+      
+      data.forEach((emp, index) => {
+        let tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="fw-bold">${index+1}</td>
+          <td class="fw-bold nrpp-cell">${emp.nrpp}</td>
+          <td class="text-start">${emp.nama}</td>
+          <td><input type="time" step="1" class="form-control form-control-sm in-cell text-center" value="${emp.masuk}"></td>
+          <td><input type="time" step="1" class="form-control form-control-sm out-cell text-center" value="${emp.keluar}"></td>
+          <td>
+            <select class="form-select form-select-sm stat-cell text-center fw-bold">
+              <option value="H" ${emp.status==='H'?'selected':''}>H</option>
+              <option value="S" ${emp.status==='S'?'selected':''}>S</option>
+              <option value="C" ${emp.status==='C'?'selected':''}>C</option>
+              <option value="ST" ${emp.status==='ST'?'selected':''}>ST</option>
+              <option value="PG" ${emp.status==='PG'?'selected':''}>PG</option>
+              <option value="VC" ${emp.status==='VC'?'selected':''}>VC</option>
+              <option value="-" ${emp.status==='-'?'selected':''}>-</option>
+            </select>
+          </td>
+          <td>
+            <button class="btn btn-success btn-sm me-1" title="Simpan" onclick="saveRowAbsensi(this)"><i class="fas fa-save"></i></button>
+            <button class="btn btn-danger btn-sm" title="Hapus" onclick="deleteRowAbsensi(this)"><i class="fas fa-trash"></i></button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }).getAttendanceForEdit(tgl, pt);
+  }
+
+  function saveRowAbsensi(btn) {
+    const tgl = document.getElementById('eaTgl').value;
+    const tr = btn.closest('tr');
+    const nrpp = tr.querySelector('.nrpp-cell').innerText.trim();
+    const masuk = tr.querySelector('.in-cell').value;
+    const keluar = tr.querySelector('.out-cell').value;
+    const status = tr.querySelector('.stat-cell').value;
+
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    google.script.run.withSuccessHandler(function(res) {
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-save"></i>';
+      if(res.success) {
+        tr.style.backgroundColor = '#d4edda';
+        setTimeout(() => { tr.style.backgroundColor = ''; }, 1000);
+      } else alert(res.message);
+    }).saveAbsensiManual(tgl, nrpp, masuk, keluar, status);
+  }
+
+  function deleteRowAbsensi(btn) {
+    if(!confirm("Yakin ingin menghapus absensi ini dari database?")) return;
+    const tgl = document.getElementById('eaTgl').value;
+    const tr = btn.closest('tr');
+    const nrpp = tr.querySelector('.nrpp-cell').innerText.trim();
+
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    google.script.run.withSuccessHandler(function(res) {
+      btn.disabled = false; btn.innerHTML = '<i class="fas fa-trash"></i>';
+      if(res.success) {
+        tr.querySelector('.in-cell').value = ""; tr.querySelector('.out-cell').value = ""; tr.querySelector('.stat-cell').value = "-";
+        tr.style.backgroundColor = '#f8d7da'; setTimeout(() => { tr.style.backgroundColor = ''; }, 1000);
+      } else alert(res.message);
+    }).deleteAbsensiManual(tgl, nrpp);
+  }
+
+  function filterCheckboxKaryawan() {
+    const pt = document.getElementById('rsPerusahaanFilter').value;
+    const container = document.getElementById('rsCheckboxContainer');
+    container.innerHTML = '';
+    allKaryawanData.forEach(k => {
+       if(pt === 'ALL' || k.pt === pt) {
+          container.innerHTML += `
+            <div class="form-check mb-1">
+              <input type="checkbox" class="form-check-input chk-karyawan" id="chk_${k.nrpp}" value="${k.nrpp}">
+              <label class="form-check-label small w-100 cursor-pointer" for="chk_${k.nrpp}">${k.nrpp} - ${k.nama}</label>
+            </div>`;
+       }
+    });
+    document.getElementById('chkSelectAll').checked = false;
+  }
+
+  function filterCheckboxList() {
+     let filter = document.getElementById('rsSearchKaryawan').value.toUpperCase();
+     let items = document.querySelectorAll('#rsCheckboxContainer .form-check');
+     items.forEach(item => {
+        let text = item.innerText.toUpperCase();
+        item.style.display = text.includes(filter) ? '' : 'none';
+     });
+  }
+
+  function toggleAllCheckboxes(source) {
+    const checkboxes = document.querySelectorAll('.chk-karyawan');
+    checkboxes.forEach(chk => {
+      if (chk.parentElement.style.display !== 'none') { chk.checked = source.checked; }
+    });
+  }
+
+  function loadRekapSummaryMulti() {
+    const start = document.getElementById('rsStart').value;
+    const end = document.getElementById('rsEnd').value;
+    if(!start || !end) { alert("Pilih rentang tanggal kalender!"); return; }
+
+    let checkedNrpp = [];
+    document.querySelectorAll('.chk-karyawan:checked').forEach(chk => checkedNrpp.push(chk.value));
+    if(checkedNrpp.length === 0) { alert("Ceklis minimal 1 Karyawan!"); return; }
+    
+    const tbody = document.querySelector('#tblRekapSummary tbody');
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4"><i class="fas fa-spinner fa-spin me-2"></i> Mengkalkulasi Keterlambatan...</td></tr>';
+    
+    google.script.run
+      .withFailureHandler(err => { tbody.innerHTML = `<tr><td colspan="9" class="text-center text-danger">${err.message}</td></tr>`; })
+      .withSuccessHandler(function(data) {
+        tbody.innerHTML = ''; 
+        if(data.length === 0) { tbody.innerHTML = '<tr><td colspan="9" class="text-center text-danger py-3">Tidak ada rekapan.</td></tr>'; return; }
+        
+        data.forEach(row => {
+          let tr = document.createElement('tr');
+          let clsTelat = (row[8] !== '00:00:00') ? 'text-danger fw-bold' : 'fw-bold';
+          tr.innerHTML = `<td>${row[0]}</td><td>${row[1]}</td><td class="text-start">${row[2]}</td><td>${row[3]}</td>
+                          <td class="fw-bold">${row[4]}</td><td>${row[5]}</td><td>${row[6]}</td><td>${row[7]}</td>
+                          <td class="${clsTelat}">${row[8]}</td>`;
+          tbody.appendChild(tr);
+        });
+      }).getMultiRekapSummary(checkedNrpp, start, end);
+  }
+
+  function downloadRekapSummaryExcel() {
+    let start = document.getElementById('rsStart').value; let end = document.getElementById('rsEnd').value;
+    if(!start || !end) { alert("Data belum ditampilkan."); return; }
+    let wb = XLSX.utils.table_to_book(document.getElementById('tblRekapSummary'), {sheet: "Summary Karyawan"});
+    XLSX.writeFile(wb, `Summary_Rekap_${start}_sd_${end}.xlsx`);
+  }
+
+  function loadCrosstabRekap() {
+    const start = document.getElementById('raStart').value;
+    const end = document.getElementById('raEnd').value;
+    const pt = document.getElementById('raPerusahaan').value;
+    if(!start || !end) { alert("Pilih rentang tanggal!"); return; }
+
+    const ptText = pt === "ALL" ? "SEMUA PERUSAHAAN" : pt;
+    document.getElementById('ctJudulPT').innerText = ptText;
+    document.getElementById('ctPeriode').innerText = `${start} s/d ${end}`;
+    
+    document.getElementById('areaCrosstab').style.display = 'block';
+    const thead = document.querySelector('#tblCrosstab thead');
+    const tbody = document.querySelector('#tblCrosstab tbody');
+    
+    tbody.innerHTML = '<tr><td class="text-center py-4">Memproses Matriks Crosstab...</td></tr>';
+    thead.innerHTML = '';
+
+    google.script.run
+      .withFailureHandler(err => {
+         tbody.innerHTML = `<tr><td class="text-danger py-4">Error Server: ${err.message}</td></tr>`;
+      })
+      .withSuccessHandler(function(res) {
+        if(res.employees.length === 0) {
+          tbody.innerHTML = '<tr><td class="text-center text-danger py-4">Data Karyawan Kosong.</td></tr>'; return;
+        }
+
+        let headRow1 = `<tr><th rowspan="2" width="40px" style="left:0;">No</th><th rowspan="2" width="100px" style="left:40px;">NRPP</th><th rowspan="2" width="200px" style="left:140px;">Nama</th>`;
+        let headRow2 = `<tr>`;
+        
+        res.dates.forEach(d => { 
+          headRow1 += `<th colspan="3">${d.display}</th>`; 
+          headRow2 += `<th>IN</th><th>OUT</th><th>Status</th>`; 
+        });
+
+        headRow1 += `<th colspan="8" class="bg-primary text-white">REKAPITULASI</th></tr>`;
+        headRow2 += `<th class="bg-primary text-white">Late</th><th class="bg-primary text-white">Sakit</th>
+                     <th class="bg-primary text-white">Cuti</th><th class="bg-primary text-white">ST</th>
+                     <th class="bg-primary text-white">VC</th><th class="bg-primary text-white">PG</th>
+                     <th class="bg-primary text-white">Jml Hadir</th><th class="bg-primary text-white">Hari Kerja</th></tr>`;
+        
+        thead.innerHTML = headRow1 + headRow2;
+
+        tbody.innerHTML = ''; let no = 1; let workdays = res.workdays;
+
+        res.employees.forEach(emp => {
+          let tr = `<tr><td style="left:0;">${no++}</td><td style="left:40px;">${emp.nrpp}</td><td style="left:140px; text-align:left;">${emp.nama}</td>`;
+          let attData = res.attendance[emp.nrpp] || {};
+          
+          res.dates.forEach(d => {
+             let att = attData[d.raw];
+             if(att) { 
+                let statClass = getStatusColorClass(att.stat);
+                tr += `<td>${att.in}</td><td>${att.out}</td><td class="fw-bold ${statClass}">${att.stat}</td>`; 
+             } else { 
+                tr += `<td>-</td><td>-</td><td>-</td>`; 
+             }
+          });
+
+          let lateClass = emp.lateStr !== "00:00:00" ? "text-danger fw-bold" : "";
+          tr += `<td class="${lateClass}">${emp.lateStr}</td>
+                 <td class="fw-bold">${emp.S}</td><td class="fw-bold">${emp.C}</td>
+                 <td class="fw-bold">${emp.ST}</td><td class="fw-bold">${emp.VC}</td>
+                 <td class="fw-bold text-danger">${emp.PG}</td><td class="fw-bold text-success">${emp.H}</td>
+                 <td class="fw-bold text-primary">${workdays}</td></tr>`;
+
+          tbody.insertAdjacentHTML('beforeend', tr);
+        });
+      }).getCrosstabRekapData(start, end, pt);
+  }
+
+  function downloadCrosstabExcel() {
+    let wb = XLSX.utils.table_to_book(document.getElementById('tblCrosstab'), {sheet: "Crosstab Rekap"});
+    XLSX.writeFile(wb, `Crosstab_Rekap_${document.getElementById('raStart').value}_sd_${document.getElementById('raEnd').value}.xlsx`);
+  }
+
+  let lapNamaKaryawan = "";
+  function loadLaporan() {
+    const pt = document.getElementById('lapPerusahaan').value;
+    const inputVal = document.getElementById('lapKaryawan').value;
+    const nrpp = inputVal.split(' - ')[0];
+    if(!nrpp) { alert("Ketik dan pilih karyawan dulu!"); return; }
+    
+    const startInput = document.getElementById('lapStart').value;
+    const endInput = document.getElementById('lapEnd').value;
+    if(!startInput || !endInput) { alert("Pilih rentang tanggal kalender!"); return; }
+
+    document.getElementById('kopPerusahaan').innerText = pt || "PT. KOBE BOGA UTAMA";
+    document.getElementById('lblPeriode').innerText = `${startInput} s/d ${endInput}`;
+    document.getElementById('lblNRPP').innerText = nrpp;
+    document.getElementById('lblNama').innerText = "Memuat...";
+    
+    const tbody = document.querySelector('#tabelLaporan tbody');
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-3">Memuat rincian kehadiran...</td></tr>';
+    document.getElementById('printArea').classList.remove('d-none');
+
+    google.script.run
+      .withFailureHandler(err => {
+         alert("SERVER ERROR: " + err.message);
+         tbody.innerHTML = `<tr><td colspan="8" class="text-danger py-3 text-center">Gagal memuat data.</td></tr>`;
+      })
+      .withSuccessHandler(res => {
+        document.getElementById('lblNRPP').innerText = res.profil.nrpp;
+        document.getElementById('lblNama').innerText = res.profil.nama;
+        lapNamaKaryawan = res.profil.nama;
+        
+        document.getElementById('lblGol').innerText = res.profil.gol;
+        document.getElementById('lblStatus').innerText = res.profil.status;
+        document.getElementById('lblJabatan').innerText = res.profil.jabatan;
+        document.getElementById('lblDept').innerText = res.profil.dept;
+        document.getElementById('lblDivisi').innerText = res.profil.divisi;
+
+        tbody.innerHTML = '';
+        
+        const start = new Date(startInput);
+        const end = new Date(endInput);
+        const namaHariList = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"];
+        let nomor = 1;
+
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+          let tglFormat = `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+          let row = res.data.find(item => item.tgl === tglFormat);
+          let tr = document.createElement('tr');
+          
+          if (row) {
+            let clsTelat = (row.terlambat !== '00:00:00' && row.terlambat !== '-') ? 'text-danger fw-bold' : 'fw-bold';
+            let statClass = getStatusColorClass(row.status);
+
+            tr.innerHTML = `
+              <td>${nomor++}</td><td class="fw-bold">${row.hari}</td><td>${row.tgl}</td>
+              <td class="fw-bold text-primary">${row.masuk}</td><td class="fw-bold text-primary">${row.keluar}</td>
+              <td class="${clsTelat}">${row.terlambat}</td><td class="fw-bold ${statClass}">${row.status}</td>
+              <td class="text-success fw-bold">${row.durasi}</td>
+            `;
+          } else {
+            let namaHari = namaHariList[d.getDay()];
+            tr.innerHTML = `
+              <td>${nomor++}</td><td class="fw-bold text-muted">${namaHari}</td><td class="text-muted">${tglFormat}</td>
+              <td class="text-muted">-</td><td class="text-muted">-</td>
+              <td class="text-muted">-</td><td class="fw-bold text-danger">ABSEN/OFF</td>
+              <td class="text-muted">-</td>
+            `;
+          }
+          tbody.appendChild(tr);
+        }
+
+        document.getElementById('lblTotHadir').innerText = res.summary.H;
+        document.getElementById('lblTotSakit').innerText = res.summary.S;
+        document.getElementById('lblTotCuti').innerText = res.summary.C;
+        document.getElementById('lblTotST').innerText = res.summary.ST;
+        document.getElementById('lblTotPG').innerText = res.summary.PG;
+        document.getElementById('lblTotVisit').innerText = res.summary.VC;
+        document.getElementById('lblTotKerja').innerText = res.summary.TotalHariKerja;
+
+      }).getLaporanIndividuDynamicByDate(nrpp, startInput, endInput);
+  }
+
+  function downloadLaporanExcel() {
+    let wb = XLSX.utils.table_to_book(document.getElementById('printArea'), {sheet: "Laporan Rincian"});
+    let fileName = `Laporan_Kehadiran_${lapNamaKaryawan.replace(/\s+/g, '_')}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  }
+
+  function downloadVariabelGaji() {
+    const startDate = document.getElementById('varTglMulai').value; 
+    const endDate = document.getElementById('varTglAkhir').value;   
+    const pt = document.getElementById('varPilihPt').value;
+    const inputVal = document.getElementById('varPilihKaryawan').value;
+    const nrpp = inputVal === 'ALL' || inputVal === '' || inputVal.toUpperCase().includes('ALL') ? 'ALL' : inputVal.split(' - ')[0];
+    
+    if(!startDate || !endDate) { alert('Silakan pilih Mulai dan Sampai Tanggal!'); return; }
+    
+    const btn = document.querySelector('#page-variabel-gaji .btn-success');
+    btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Memproses...';
+    
+    google.script.run
+      .withFailureHandler(err => {
+         btn.disabled = false; btn.innerHTML = '<i class="fas fa-download me-2"></i> Download Excel';
+         alert("Error Server: " + err.message);
+      })
+      .withSuccessHandler(data => {
+        btn.disabled = false; btn.innerHTML = '<i class="fas fa-download me-2"></i> Download Excel';
+        if(data.length === 0) { alert("Data kosong."); return; }
+        
+        let exportData = []; let noUrut = 1;
+        data.forEach(row => {
+          exportData.push({ "No": noUrut++, "NRPP": row[0], "NAMA": row[1], "DEPT": row[2], "TOTAL KEHADIRAN": row[3] });
+        });
+        
+        let ws = XLSX.utils.json_to_sheet(exportData);
+        let wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Variabel_Gaji");
+        XLSX.writeFile(wb, `Variabel_Gaji_${startDate}_sd_${endDate}.xlsx`);
+      }).getVariabelGajiDataByDate(startDate, endDate, nrpp, pt);
+  }
+
+  function handleFileUpload() {
+    const fileInput = document.getElementById('excelFileInput');
+    const statusDiv = document.getElementById('uploadStatus');
+    const btn = document.getElementById('btnUpload');
+
+    if (!fileInput.files || fileInput.files.length === 0) {
+      statusDiv.innerHTML = '<div class="alert alert-danger">Pilih file Excel!</div>'; return;
+    }
+
+    const reader = new FileReader();
+    btn.disabled = true; btn.innerHTML = 'Mengekstrak...';
+
+    reader.onload = function(e) {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, {type: 'array'});
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {header: 1});
+
+        google.script.run
+          .withFailureHandler(err => {
+             btn.disabled = false; btn.innerHTML = 'Proses Data Excel';
+             statusDiv.innerHTML = `<div class="alert alert-danger">❌ Error: ${err.message}</div>`;
+          })
+          .withSuccessHandler(res => {
+            btn.disabled = false; btn.innerHTML = 'Proses Data Excel';
+            statusDiv.innerHTML = res.success ? `<div class="alert alert-success fw-bold">✅ ${res.message}</div>` : `<div class="alert alert-danger">❌ ${res.message}</div>`;
+            fileInput.value = ''; 
+          }).processExcelUpload(jsonData);
+      } catch (err) {
+        btn.disabled = false; btn.innerHTML = 'Proses Data Excel';
+        statusDiv.innerHTML = '<div class="alert alert-danger">❌ Gagal membaca file.</div>';
+      }
+    };
+    reader.readAsArrayBuffer(fileInput.files[0]);
+  }
+</script>
