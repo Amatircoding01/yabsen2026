@@ -1,0 +1,58 @@
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f1f4f6; }
+  #wrapper { overflow-x: hidden; min-height: 100vh; }
+  #sidebar-wrapper { min-width: 260px; max-width: 260px; transition: margin .25s ease-out; }
+  .list-group-item:hover { background-color: #343a40 !important; color: #17a2b8 !important; }
+  .submenu-text { font-size: 0.9rem; border-left: 3px solid transparent; }
+  .submenu-text:hover { border-left: 3px solid #17a2b8; background-color: #2b3035 !important; }
+  
+  .freeze-table { max-height: 65vh; overflow-y: auto; }
+  .freeze-table thead th { 
+    position: sticky; top: 0; z-index: 10; 
+    background-color: #212529 !important; color: white; border-bottom: 2px solid #454d55;
+  }
+
+  /* CROSSTAB CSS: Garis Diperjelas menggunakan #343a40 (Dark Grey/Black) */
+  .table-crosstab { border-collapse: collapse; }
+  .table-crosstab th, .table-crosstab td { border: 1px solid #343a40 !important; }
+  .table-crosstab th:nth-child(1), .table-crosstab td:nth-child(1),
+  .table-crosstab th:nth-child(2), .table-crosstab td:nth-child(2),
+  .table-crosstab th:nth-child(3), .table-crosstab td:nth-child(3) {
+    position: sticky; background-color: #f8f9fa; z-index: 5; font-weight: bold; outline: 1px solid #343a40;
+  }
+  .table-crosstab thead th:nth-child(1), .table-crosstab thead th:nth-child(2), .table-crosstab thead th:nth-child(3) {
+    z-index: 15; background-color: #212529 !important; outline: 1px solid #454d55;
+  }
+  .table-crosstab td:nth-child(1) { left: 0; }
+  .table-crosstab td:nth-child(2) { left: 40px; }
+  .table-crosstab td:nth-child(3) { left: 140px; }
+
+  /* WARNA STATUS KEHADIRAN (PRINT EXACT COLOR) */
+  .bg-status-h { background-color: #ffb6c1 !important; color: #000 !important; -webkit-print-color-adjust: exact; } /* Pink */
+  .bg-status-s { background-color: #98fb98 !important; color: #000 !important; -webkit-print-color-adjust: exact; } /* Hijau Muda */
+  .bg-status-st { background-color: #fffacd !important; color: #000 !important; -webkit-print-color-adjust: exact; } /* Kuning */
+  .bg-status-pg { background-color: #ff9999 !important; color: #000 !important; -webkit-print-color-adjust: exact; } /* Merah */
+  .bg-status-vc { background-color: #87cefa !important; color: #000 !important; -webkit-print-color-adjust: exact; } /* Biru */
+  .bg-status-c { background-color: #40e0d0 !important; color: #000 !important; -webkit-print-color-adjust: exact; }  /* Tosca */
+
+  /* KERTAS A4 & BORDERS KHUSUS CETAK */
+  .doc-preview {
+    background: white; width: 210mm; min-height: 297mm; padding: 20mm; margin: 0 auto;      
+    box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: 1px solid #ddd; color: #000;
+  }
+  .doc-font { font-family: 'Arial', sans-serif; }
+  .border-bottom-double { border-bottom: 3px double #000; margin-bottom: 15px; }
+  .table-identitas td { padding: 1px 0; }
+  
+  .bg-gray-header { background-color: #d9d9d9 !important; color: black !important; -webkit-print-color-adjust: exact; }
+  .report-table { border: 1.5px solid #000 !important; margin-bottom: 20px; }
+  .report-table th, .report-table td { border: 1px solid #000 !important; padding: 5px 4px; }
+
+  @media print {
+    .no-print, #sidebar-wrapper, nav { display: none !important; }
+    body, #wrapper, #page-content-wrapper { background-color: white !important; margin: 0; padding: 0; }
+    .doc-preview { width: 100%; min-height: auto; padding: 0; margin: 0; box-shadow: none; border: none; }
+    .bg-gray-header { background-color: #d9d9d9 !important; -webkit-print-color-adjust: exact; }
+    @page { size: A4 portrait; margin: 1cm; }
+  }
+</style>
