@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>HRIS ABSENSI KOBE</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script> 
+  <?!= include('Css'); ?>
+</head>
+<body>
+
+<datalist id="listKaryawanAll"></datalist>
+<datalist id="listKaryawanSingle"></datalist>
+<datalist id="listPerusahaan"></datalist>
+
+<div class="d-flex" id="wrapper">
+  <div class="bg-dark text-white no-print" id="sidebar-wrapper">
+    <div class="sidebar-heading text-center py-4 fw-bold fs-6 border-bottom border-secondary">🏢 HRIS KOBE</div>
+    <div class="list-group list-group-flush mt-3">
+      <a href="#" class="list-group-item list-group-item-action bg-dark text-white border-0" onclick="showPage('dashboard')"><i class="fas fa-home me-2"></i> Dashboard</a>
+      <a href="#" class="list-group-item list-group-item-action bg-dark text-white border-0" onclick="showPage('upload')"><i class="fas fa-upload me-2"></i> Upload Absensi (Excel)</a>
+      
+      <a href="#absensiSubmenu" data-bs-toggle="collapse" class="list-group-item list-group-item-action bg-dark text-white border-0 d-flex justify-content-between align-items-center">
+        <span><i class="fas fa-users me-2"></i> Absensi Karyawan</span><i class="fas fa-caret-down"></i>
+      </a>
+      <div class="collapse" id="absensiSubmenu">
+        <a href="#" class="list-group-item list-group-item-action bg-dark text-white border-0 ps-5 py-2 submenu-text text-info" onclick="showPage('edit-absensi')"><i class="fas fa-edit me-1"></i> Edit / Tambah Absensi</a>
+        <a href="#" class="list-group-item list-group-item-action bg-dark text-white border-0 ps-5 py-2 submenu-text" onclick="showPage('rekap-all')">Rekap Absensi All</a>
+        <a href="#" class="list-group-item list-group-item-action bg-dark text-white border-0 ps-5 py-2 submenu-text" onclick="showPage('rekap-summary')">Summary Per Karyawan</a>
+        <a href="#" class="list-group-item list-group-item-action bg-dark text-white border-0 ps-5 py-2 submenu-text" onclick="showPage('laporan')">Cetak Laporan / PDF</a>
+        <a href="#" class="list-group-item list-group-item-action bg-dark text-white border-0 ps-5 py-2 submenu-text text-warning" onclick="showPage('variabel-gaji')"><i class="fas fa-file-excel me-1"></i> Variabel Gaji</a>
+      </div>
+    </div>
+  </div>
+
+  <div id="page-content-wrapper" class="w-100 bg-light">
+    <nav class="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm no-print p-3">
+      <h6 class="mb-0 text-primary fw-bold text-uppercase" id="pageTitle" style="letter-spacing: 0.5px;">Dashboard</h6>
+    </nav>
+
+    <div class="container-fluid p-4">
+      
+      <div id="page-dashboard" class="page-section">
+        <div class="alert alert-primary shadow-sm border-0">
+          <h5 class="alert-heading fw-bold">Selamat Datang di HRIS KOBE!</h5>
+          <p class="mb-0" style="font-size: 0.9rem;">Sistem ini mendeteksi data Master Karyawan secara dinamis. Gunakan menu di kiri untuk upload, melihat rekapan, dan mencetak laporan.</p>
+        </div>
+      </div>
+
+      <div id="page-upload" class="page-section d-none no-print">
+        <div class="mb-3"><button class="btn btn-secondary btn-sm" onclick="showPage('dashboard')"><i class="fas fa-arrow-left me-1"></i> Kembali</button></div>
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-success text-white fw-bold py-2" style="font-size: 0.95rem;">⚙️ Upload Data Mesin Fingerprint (.xlsx / .xls)</div>
+          <div class="card-body text-center p-5">
+            <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="form-control mb-4 w-50 mx-auto">
+            <button id="btnUpload" class="btn btn-success btn-lg px-5" onclick="handleFileUpload()"><i class="fas fa-file-excel me-2"></i> Proses Data Excel</button>
+            <div id="uploadStatus" class="mt-4"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="page-edit-absensi" class="page-section d-none no-print">
+        <div class="mb-3"><button class="btn btn-secondary btn-sm" onclick="showPage('dashboard')"><i class="fas fa-arrow-left me-1"></i> Kembali</button></div>
+        <div class="card shadow-sm border-0 mb-3">
+          <div class="card-body bg-white rounded py-2">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-3">
+                <label class="small fw-bold">Pilih Perusahaan:</label>
+                <select id="eaPerusahaan" class="form-select form-select-sm select-pt-all"></select>
+              </div>
+              <div class="col-md-3">
+                <label class="small fw-bold">Tanggal Absensi:</label>
+                <input type="date" id="eaTgl" class="form-control form-control-sm">
+              </div>
+              <div class="col-md-2">
+                <button class="btn btn-info btn-sm w-100 text-white fw-bold" onclick="loadEditAbsensi()"><i class="fas fa-search me-1"></i> Tampilkan Data</button>
+              </div>
+              <div class="col-md-4">
+                 <label class="small fw-bold text-info">Pencarian Nama Karyawan:</label>
+                 <input type="text" id="searchEditAbsen" class="form-control form-control-sm border-info" placeholder="Ketik Nama/NRPP disini..." onkeyup="filterTabel('searchEditAbsen', 'tblEditAbsensi')">
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card shadow-sm border-0" id="areaEditAbsensi" style="display:none;">
+          <div class="card-header bg-info text-white fw-bold py-2" style="font-size: 0.95rem;"><i class="fas fa-edit me-2"></i> Kelola Absensi Karyawan</div>
+          <div class="card-body table-responsive freeze-table p-0">
+            <table class="table table-bordered table-hover mb-0 text-center" id="tblEditAbsensi">
+              <thead class="table-dark align-middle">
+                <tr><th width="5%">No</th><th width="15%">NRPP</th><th width="30%">Nama</th><th width="15%">Jam Masuk</th><th width="15%">Jam Keluar</th><th width="10%">Status</th><th width="10%">Aksi</th></tr>
+              </thead>
+              <tbody class="align-middle" style="font-size:13px;"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="page-rekap-all" class="page-section d-none no-print">
+        <div class="mb-3"><button class="btn btn-secondary btn-sm" onclick="showPage('dashboard')"><i class="fas fa-arrow-left me-1"></i> Kembali</button></div>
+        <div class="card shadow-sm border-0 mb-3">
+          <div class="card-body bg-white rounded py-2">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-3">
+                <label class="small fw-bold">Perusahaan:</label>
+                <select id="raPerusahaan" class="form-select form-select-sm select-pt-all"></select>
+              </div>
+              <div class="col-md-2">
+                <label class="small fw-bold">Dari Tanggal:</label>
+                <input type="date" id="raStart" class="form-control form-control-sm">
+              </div>
+              <div class="col-md-2">
+                <label class="small fw-bold">Sampai Tanggal:</label>
+                <input type="date" id="raEnd" class="form-control form-control-sm">
+              </div>
+              <div class="col-md-5">
+                <div class="d-flex gap-2">
+                  <button class="btn btn-primary btn-sm flex-grow-1" onclick="loadCrosstabRekap()"><i class="fas fa-search me-1"></i> Tampilkan Crosstab</button>
+                  <button class="btn btn-success btn-sm flex-grow-1" onclick="downloadCrosstabExcel()"><i class="fas fa-file-excel me-1"></i> Export Excel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card shadow-sm border-0" id="areaCrosstab" style="display:none;">
+          <div class="card-body p-2">
+            <div class="mb-3 ps-2 pt-2">
+              <h6 id="ctJudulPT" class="fw-bold mb-1">PT. KOBEXINDO EQUIPMENT</h6>
+              <p class="mb-0 text-muted" style="font-size: 0.85rem;">Periode : <span id="ctPeriode">-</span></p>
+            </div>
+            <div class="table-responsive" style="max-height: 65vh; overflow: auto;">
+              <table class="table table-sm table-crosstab text-center align-middle" id="tblCrosstab">
+                <thead style="position: sticky; top: 0; z-index: 10;"></thead>
+                <tbody style="font-size: 12px; white-space: nowrap;"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="page-rekap-summary" class="page-section d-none no-print">
+        <div class="mb-3"><button class="btn btn-secondary btn-sm" onclick="showPage('dashboard')"><i class="fas fa-arrow-left me-1"></i> Kembali</button></div>
+        <div class="card shadow-sm border-0 mb-3">
+          <div class="card-body bg-white rounded py-2">
+            <div class="row g-2 align-items-start">
+              <div class="col-md-5">
+                <label class="small fw-bold">Pilih Karyawan (Bisa >1):</label>
+                <select id="rsPerusahaanFilter" class="form-select form-select-sm mb-2 select-pt-all" onchange="filterCheckboxKaryawan()"></select>
+                <input type="text" id="rsSearchKaryawan" class="form-control form-control-sm mb-1 border-primary" placeholder="🔍 Cari nama di daftar ceklis..." onkeyup="filterCheckboxList()">
+                <div class="border p-2 rounded bg-light" style="max-height: 120px; overflow-y: auto;" id="rsCheckboxContainer"></div>
+                <div class="mt-2 px-2 py-1 bg-dark text-white rounded">
+                  <input type="checkbox" id="chkSelectAll" class="form-check-input me-1" onchange="toggleAllCheckboxes(this)"> 
+                  <label for="chkSelectAll" class="small fw-bold cursor-pointer mb-0">PILIH SEMUA KARYAWAN</label>
+                </div>
+              </div>
+              <div class="col-md-7">
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <label class="small fw-bold">Dari Tanggal:</label>
+                    <input type="date" id="rsStart" class="form-control form-control-sm mb-2">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="small fw-bold">Sampai Tanggal:</label>
+                    <input type="date" id="rsEnd" class="form-control form-control-sm">
+                  </div>
+                  <div class="col-md-12 mt-4">
+                    <div class="d-flex gap-2">
+                      <button class="btn btn-primary btn-sm flex-grow-1 py-2" onclick="loadRekapSummaryMulti()"><i class="fas fa-search me-1"></i> Tampilkan</button>
+                      <button class="btn btn-success btn-sm flex-grow-1 py-2" onclick="downloadRekapSummaryExcel()"><i class="fas fa-file-excel me-1"></i> Export Excel</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-dark text-white fw-bold py-2" style="font-size: 0.95rem;">📉 Summary Kehadiran Karyawan (Total Keterlambatan)</div>
+          <div class="card-body table-responsive freeze-table p-0">
+            <table class="table table-bordered border-dark table-hover mb-0 text-center" id="tblRekapSummary">
+              <thead class="table-dark align-middle">
+                <tr><th>Periode</th><th>NRPP</th><th>Nama</th><th>Divisi</th><th>H</th><th>S</th><th>C</th><th>PG</th><th>TOTAL KETERLAMBATAN</th></tr>
+              </thead>
+              <tbody class="align-middle" style="font-size: 0.9rem;"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="page-laporan" class="page-section d-none">
+        <div class="mb-3 no-print"><button class="btn btn-secondary btn-sm" onclick="showPage('dashboard')"><i class="fas fa-arrow-left me-1"></i> Kembali</button></div>
+        
+        <div class="card shadow-sm border-0 no-print mb-4">
+          <div class="card-body">
+            <div class="row g-2 align-items-end">
+              <div class="col-md-3">
+                <label class="small fw-bold">Pilih Perusahaan:</label>
+                <select id="lapPerusahaan" class="form-select form-select-sm select-pt-single"></select>
+              </div>
+              <div class="col-md-3">
+                <label class="small fw-bold">Ketik NRPP / Nama:</label>
+                <input type="text" id="lapKaryawan" list="listKaryawanSingle" class="form-control form-control-sm" placeholder="Mulai mengetik...">
+              </div>
+              <div class="col-md-2">
+                <label class="small fw-bold">Dari Tgl:</label>
+                <input type="date" id="lapStart" class="form-control form-control-sm">
+              </div>
+              <div class="col-md-2">
+                <label class="small fw-bold">Sampai Tgl:</label>
+                <input type="date" id="lapEnd" class="form-control form-control-sm">
+              </div>
+              <div class="col-md-2">
+                <button class="btn btn-primary btn-sm w-100" onclick="loadLaporan()"><i class="fas fa-file-invoice me-1"></i> Pratinjau</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="printArea" class="doc-preview d-none doc-font">
+          <div class="text-center mb-4 pb-2 border-bottom border-2 border-dark print-header">
+            <h4 id="kopPerusahaan" class="fw-bold mb-1 text-uppercase" style="font-size: 18px; letter-spacing: 1px;">PT. PERUSAHAAN</h4>
+            <h5 class="fw-bold mb-0 text-decoration-underline" style="font-size: 15px;">LAPORAN RINCIAN KEHADIRAN KARYAWAN</h5>
+          </div>
+
+          <div class="row mb-3 text-dark report-identity" style="font-size: 13px; font-weight: bold;">
+            <div class="col-7">
+              <table class="table-borderless table-sm w-100">
+                <tr><td width="25%">NRPP</td><td width="2%">:</td><td><span id="lblNRPP">-</span></td></tr>
+                <tr><td>NAMA KARYAWAN</td><td>:</td><td><span id="lblNama">-</span></td></tr>
+                <tr><td>GOL</td><td>:</td><td><span id="lblGol">-</span></td></tr>
+                <tr><td>STATUS</td><td>:</td><td><span id="lblStatus">-</span></td></tr>
+              </table>
+            </div>
+            <div class="col-5">
+              <table class="table-borderless table-sm w-100">
+                <tr><td width="35%">JABATAN</td><td width="2%">:</td><td><span id="lblJabatan">-</span></td></tr>
+                <tr><td>DEPT</td><td>:</td><td><span id="lblDept">-</span></td></tr>
+                <tr><td>DIVISI</td><td>:</td><td><span id="lblDivisi">-</span></td></tr>
+                <tr><td>PERIODE</td><td>:</td><td><span id="lblPeriode">-</span></td></tr>
+              </table>
+            </div>
+          </div>
+
+          <table class="table table-bordered border-dark table-sm text-dark report-table mb-3" id="tabelLaporan">
+            <thead class="text-center align-middle fw-bold bg-gray-header">
+              <tr>
+                <th width="4%">NO</th><th width="10%">HARI</th><th width="13%">TANGGAL</th>
+                <th width="11%">JAM MASUK</th><th width="11%">JAM KELUAR</th><th width="15%">KETERLAMBATAN</th>
+                <th width="9%">STATUS</th><th width="27%">DURASI JAM</th>
+              </tr>
+            </thead>
+            <tbody class="text-center align-middle" style="font-size: 12px;"></tbody>
+          </table>
+
+          <div class="row mt-4 pt-2 text-dark footer-section" style="page-break-inside: avoid;">
+            <div class="col-12 mb-4">
+              <table class="table table-bordered border-dark table-sm mb-0 report-table text-center" style="font-size: 11px;">
+                <thead class="bg-gray-header">
+                  <tr><th colspan="7" class="py-2">REKAPITULASI KEHADIRAN</th></tr>
+                  <tr>
+                    <th width="14%">HADIR (H)</th><th width="14%">SAKIT (S)</th><th width="14%">CUTI (C)</th>
+                    <th width="14%">ST</th><th width="14%">PG / ALPA</th><th width="14%">VISIT CUST</th><th width="16%">HARI KERJA</th>
+                  </tr>
+                </thead>
+                <tbody class="fw-bold" style="font-size: 13px;">
+                  <tr>
+                    <td><span id="lblTotHadir">0</span></td><td><span id="lblTotSakit">0</span></td><td><span id="lblTotCuti">0</span></td>
+                    <td><span id="lblTotST">0</span></td><td><span id="lblTotPG">0</span></td><td><span id="lblTotVisit">0</span></td>
+                    <td class="bg-gray-header"><span id="lblTotKerja">0</span></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="col-12 mt-2">
+              <div class="d-flex justify-content-between text-center px-4" style="font-size: 12px;">
+                <div style="width: 220px;">
+                  <p class="mb-5 pb-4">Dibuat Oleh,</p>
+                  <p class="fw-bold text-decoration-underline mb-0">( .................................... )</p>
+                  <p class="small mb-0 text-muted">Admin / HRD</p>
+                </div>
+                <div style="width: 220px;">
+                  <p class="mb-5 pb-4">Mengetahui,</p>
+                  <p class="fw-bold text-decoration-underline mb-0">( .................................... )</p>
+                  <p class="small mb-0 text-muted">Manager HRD</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="text-end mt-5 pt-3 no-print">
+            <button class="btn btn-success btn-lg px-4 shadow me-2" onclick="downloadLaporanExcel()"><i class="fas fa-file-excel me-2"></i> Export Excel</button>
+            <button class="btn btn-danger btn-lg px-4 shadow" onclick="window.print()"><i class="fas fa-file-pdf me-2"></i> Cetak PDF</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="page-variabel-gaji" class="page-section d-none no-print">
+        <div class="mb-3"><button class="btn btn-secondary btn-sm" onclick="showPage('dashboard')"><i class="fas fa-arrow-left me-1"></i> Kembali</button></div>
+        <div class="card shadow-sm border-0">
+          <div class="card-header bg-warning text-dark fw-bold py-2" style="font-size: 0.95rem;"><i class="fas fa-file-excel me-2"></i> Cetak Absensi Variabel Gaji (.xlsx)</div>
+          <div class="card-body p-4">
+            <div class="row g-3 justify-content-center mb-4">
+              <div class="col-md-3">
+                <label class="small fw-bold">Dari Tanggal:</label>
+                <input type="date" id="varTglMulai" class="form-control border-warning shadow-sm">
+              </div>
+              <div class="col-md-3">
+                <label class="small fw-bold">Sampai Tanggal:</label>
+                <input type="date" id="varTglAkhir" class="form-control border-warning shadow-sm">
+              </div>
+              <div class="col-md-3">
+                <label class="small fw-bold">Filter Perusahaan:</label>
+                <select id="varPilihPt" class="form-select select-pt-all border-warning shadow-sm"></select>
+              </div>
+              <div class="col-md-3">
+                <label class="small fw-bold">Ketik NRPP / Nama (Opsional):</label>
+                <input type="text" id="varPilihKaryawan" list="listKaryawanAll" class="form-control border-warning shadow-sm" placeholder="Ketik ALL untuk semua">
+              </div>
+            </div>
+            <div class="text-center mt-4">
+              <button class="btn btn-success btn-lg px-5 shadow w-50" onclick="downloadVariabelGaji()">
+                <i class="fas fa-download me-2"></i> Download Excel (.xlsx)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<?!= include('Js'); ?>
+</body>
+</html>
